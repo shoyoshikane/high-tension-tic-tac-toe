@@ -1,0 +1,63 @@
+name: Test and build native apps
+on:
+  push:
+    branches: [main]
+    paths: ['native/**', '.github/workflows/native.yml']
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  android:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+      - run: bash tool/bootstrap.sh
+        working-directory: native
+      - run: dart format lib test
+        working-directory: native
+      - run: flutter analyze
+        working-directory: native
+      - run: flutter test
+        working-directory: native
+      - run: flutter build apk --debug
+        working-directory: native
+      - uses: actions/upload-artifact@v4
+        with:
+          name: android-apk
+          path: native/build/app/outputs/flutter-apk/app-debug.apk
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: flutter-source
+          path: |
+            native/lib/
+            native/test/
+            native/android/
+            native/ios/
+            native/pubspec.*
+            native/.metadata
+          include-hidden-files: true
+  ios:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+      - run: bash tool/bootstrap.sh
+        working-directory: native
+      - run: flutter build ios --no-codesign
+        working-directory: native
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ios-unsigned
+          path: native/build/ios/iphoneos/Runner.app
