@@ -43,7 +43,11 @@ export class Room {
         if(!this.host||this.closed){conn.on('open',()=>conn.close());return;}
         const meta=conn.metadata;
         if(meta?.version!==VERSION || typeof meta.token!=='string' || meta.token.length>100 || (this.guestToken&&this.guestToken!==meta.token)||this.conn){
-          conn.on('open',()=>{conn.send({type:'rejected',version:VERSION});setTimeout(()=>conn.close(),200);});return;
+          const reject=()=>{if(conn.open)conn.send({type:'rejected',version:VERSION});};
+          let timeout;
+          conn.on('open',()=>{reject();timeout=setTimeout(()=>conn.close(),20000);});
+          conn.on('data',message=>{if(message?.version!==VERSION)return;if(message.type==='sync')reject();if(message.type==='rejected-ack')conn.close();});
+          conn.on('close',()=>clearTimeout(timeout));conn.on('error',()=>{clearTimeout(timeout);conn.close();});return;
         }
         this.attach(conn);
       });
@@ -79,6 +83,7 @@ export class Room {
         this.send({type:'ping'});
       },1000);
       if(this.host){this.guestToken=conn.metadata.token;this.ready=true;clearTimeout(this.timeout);this.sendSnapshot();this.status('友達と接続しました。あなたは先攻（黒）です。');}
+      else this.send({type:'sync'});
     });
     conn.on('data',message=>{if(!this.closed&&this.conn===conn)this.receive(message);});
     const lost=()=>{if(this.closed||this.conn!==conn)return;this.conn=null;this.ready=false;this.pending=false;this.localVote=false;this.remoteVote=false;clearTimeout(this.timeout);clearInterval(this.heartbeat);this.status('友達との接続が切れました。画面を開いたまま再接続してください。');};
@@ -91,8 +96,9 @@ export class Room {
     this.lastSeen=Date.now();
     if(message.type==='ping'){this.send({type:'pong'});return;}
     if(message.type==='pong')return;
-    if(message.type==='rejected'){this.ready=false;clearTimeout(this.timeout);clearInterval(this.heartbeat);const conn=this.conn;this.conn=null;this.status('この部屋は満員、または別の対局が進行中です。新しい招待リンクをもらってください。');conn?.close();return;}
+    if(message.type==='rejected'){this.send({type:'rejected-ack'});this.ready=false;clearTimeout(this.timeout);clearInterval(this.heartbeat);const conn=this.conn;this.conn=null;this.status('この部屋は満員、または別の対局が進行中です。新しい招待リンクをもらってください。');conn?.close();return;}
     if(this.host){
+      if(message.type==='sync'){this.sendSnapshot();return;}
       if(message.type==='move'&&this.ready){
         const out=acceptMove(this.state,message,2,this.match);
         if(out){this.state=out.state;this.localVote=false;this.remoteVote=false;this.sendSnapshot();this.onState(this.state,out.steps);}
