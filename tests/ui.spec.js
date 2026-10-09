@@ -13,7 +13,18 @@ const log=page=>page.evaluate(()=>JSON.parse(localStorage.getItem('high-tension-
 const expectMove=async(page,action)=>{
   // Flush queued input/timers without reaching the CPU's 600 ms response.
   await page.clock.runFor(32);
-  await expect.poll(async()=> (await log(page)).at(-1)).toMatchObject(action);
+  try{await expect.poll(async()=> (await log(page)).at(-1)).toMatchObject(action);}
+  catch(error){
+    console.error('Gesture diagnostics:',JSON.stringify(await page.evaluate(()=>({
+      events:window.__gestureEvents,errors:window.__gestureErrors,
+      reducedMotion:matchMedia('(prefers-reduced-motion: reduce)').matches,
+      turn:document.getElementById('turn-label').textContent,
+      message:document.getElementById('message').textContent,
+      guideHidden:document.getElementById('drag-guide').hasAttribute('hidden'),
+      saved:localStorage.getItem('high-tension-v1')
+    }))));
+    throw error;
+  }
 };
 async function setup(page,seed=[{type:'place',i:0,player:1},{type:'place',i:2,player:2}]){
   await page.route('https://game.test/**',async route=>{
@@ -22,6 +33,20 @@ async function setup(page,seed=[{type:'place',i:0,player:1},{type:'place',i:2,pl
     try{const body=await readFile(file),ext=path.extname(file);await route.fulfill({body,contentType:ext==='.js'?'text/javascript':ext==='.css'?'text/css':'text/html'});}catch{await route.fulfill({status:404,body:''});}
   });
   await page.addInitScript(seed=>localStorage.setItem('high-tension-v1',JSON.stringify({state:{log:seed},mode:'cpu'})),seed);
+  await page.addInitScript(()=>{
+    window.__gestureEvents=[];window.__gestureErrors=[];
+    window.addEventListener('error',event=>window.__gestureErrors.push(event.message));
+    window.addEventListener('unhandledrejection',event=>window.__gestureErrors.push(String(event.reason)));
+    for(const type of ['pointerdown','pointermove','pointerup','pointercancel','gotpointercapture','lostpointercapture']){
+      document.addEventListener(type,event=>{
+        if(!event.target.closest?.('#board'))return;
+        const board=document.getElementById('board'),rect=board.getBoundingClientRect();
+        window.__gestureEvents.push({type,id:event.pointerId,target:event.target.id||event.target.dataset.cell,
+          x:event.clientX,y:event.clientY,captured:board.hasPointerCapture(event.pointerId),
+          board:{left:rect.left,right:rect.right,top:rect.top,bottom:rect.bottom}});
+      },true);
+    }
+  });
   await page.clock.install({time:new Date('2026-01-01T00:00:00Z')});
   await page.clock.pauseAt(new Date('2026-01-01T00:00:01Z'));
   await page.goto('https://game.test/');
