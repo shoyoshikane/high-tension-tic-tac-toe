@@ -663,108 +663,114 @@ class _GameBoardState extends State<GameBoard> {
             return Focus(
               autofocus: true,
               onKeyEvent: _key,
-              child: GestureDetector(
-                key: const Key('board'),
-                behavior: HitTestBehavior.opaque,
-                onPanDown: (d) {
-                  _origin = d.localPosition;
-                },
-                onPanStart: _start,
-                onPanUpdate: (d) => _update(d.localPosition),
-                onPanEnd: (_) => _end(),
-                onPanCancel: _cancel,
-                onTapUp: (d) {
-                  final i = _cell(d.localPosition);
-                  if (i != null) _tap(i);
-                },
-                child: Stack(
-                  children: [
-                    GridView.count(
-                      crossAxisCount: 5,
-                      padding: EdgeInsets.zero,
-                      mainAxisSpacing: 3,
-                      crossAxisSpacing: 3,
-                      physics: const NeverScrollableScrollPhysics(),
-                      children: List.generate(25, (i) {
-                        final changed =
-                            _ghost != null && b[i] != game.state.board[i];
-                        return Semantics(
-                          label:
-                              '${'ABCDE'[i % 5]}${i ~/ 5 + 1} ${game.state.board[i] == 0
-                                  ? '空きマス'
-                                  : game.state.board[i] == 1
-                                  ? '黒のコマ'
-                                  : '白のコマ'}',
-                          button: true,
-                          enabled: game.canInteract,
-                          onTap:
-                              game.canInteract &&
-                                  (canPlace(game.state, i) ||
-                                      game.state.board[i] == game.state.turn)
-                              ? () => _tap(i)
-                              : null,
-                          child: Container(
-                            key: Key('cell-$i'),
-                            decoration: BoxDecoration(
-                              color: winning.contains(i)
-                                  ? const Color(0xffdbd6a8)
-                                  : red
-                                  ? Colors.white.withValues(
-                                      alpha: changed ? .2 : .09,
-                                    )
-                                  : changed
-                                  ? const Color(0xffd6e0d7)
-                                  : const Color(0xffe8ece5),
-                              borderRadius: BorderRadius.circular(7),
-                              border: _selected == i
-                                  ? Border.all(
-                                      color: red
-                                          ? Colors.white70
-                                          : const Color(0xff7d9284),
-                                      width: 1.5,
-                                    )
-                                  : null,
-                            ),
-                            child: Center(
-                              child: b[i] != 0
-                                  ? FractionallySizedBox(
-                                      widthFactor: .64,
-                                      child: AspectRatio(
-                                        aspectRatio: 1,
-                                        child: Opacity(
-                                          opacity: changed ? .65 : 1,
-                                          child: _Stone(player: b[i]),
+              child: Listener(
+                // Accepted Flutter drags also emit onPanEnd on pointer cancel.
+                // Clear the preview before the recognizer processes that event.
+                onPointerCancel: (_) => _cancel(),
+                child: GestureDetector(
+                  key: const Key('board'),
+                  behavior: HitTestBehavior.opaque,
+                  onPanDown: (d) {
+                    _origin = d.localPosition;
+                  },
+                  onPanStart: _start,
+                  onPanUpdate: (d) => _update(d.localPosition),
+                  onPanEnd: (_) => _end(),
+                  onPanCancel: _cancel,
+                  onTapUp: (d) {
+                    final i = _cell(d.localPosition);
+                    if (i != null) _tap(i);
+                  },
+                  child: Stack(
+                    children: [
+                      GridView.count(
+                        crossAxisCount: 5,
+                        padding: EdgeInsets.zero,
+                        mainAxisSpacing: 3,
+                        crossAxisSpacing: 3,
+                        physics: const NeverScrollableScrollPhysics(),
+                        children: List.generate(25, (i) {
+                          final changed =
+                              _ghost != null && b[i] != game.state.board[i];
+                          return Semantics(
+                            label:
+                                '${'ABCDE'[i % 5]}${i ~/ 5 + 1} ${game.state.board[i] == 0
+                                    ? '空きマス'
+                                    : game.state.board[i] == 1
+                                    ? '黒のコマ'
+                                    : '白のコマ'}',
+                            button: true,
+                            enabled: game.canInteract,
+                            onTap:
+                                game.canInteract &&
+                                    (canPlace(game.state, i) ||
+                                        game.state.board[i] == game.state.turn)
+                                ? () => _tap(i)
+                                : null,
+                            child: Container(
+                              key: Key('cell-$i'),
+                              decoration: BoxDecoration(
+                                color: winning.contains(i)
+                                    ? const Color(0xffdbd6a8)
+                                    : red
+                                    ? Colors.white.withValues(
+                                        alpha: changed ? .2 : .09,
+                                      )
+                                    : changed
+                                    ? const Color(0xffd6e0d7)
+                                    : const Color(0xffe8ece5),
+                                borderRadius: BorderRadius.circular(7),
+                                border: _selected == i
+                                    ? Border.all(
+                                        color: red
+                                            ? Colors.white70
+                                            : const Color(0xff7d9284),
+                                        width: 1.5,
+                                      )
+                                    : null,
+                              ),
+                              child: Center(
+                                child: b[i] != 0
+                                    ? FractionallySizedBox(
+                                        widthFactor: .64,
+                                        child: AspectRatio(
+                                          aspectRatio: 1,
+                                          child: Opacity(
+                                            opacity: changed ? .65 : 1,
+                                            child: _Stone(player: b[i]),
+                                          ),
                                         ),
-                                      ),
-                                    )
-                                  : canPlace(game.state, i) && game.canInteract
-                                  ? Container(
-                                      width: 4,
-                                      height: 4,
-                                      decoration: const BoxDecoration(
-                                        color: Color(0xffa8b3a9),
-                                        shape: BoxShape.circle,
-                                      ),
-                                    )
-                                  : null,
+                                      )
+                                    : canPlace(game.state, i) &&
+                                          game.canInteract
+                                    ? Container(
+                                        width: 4,
+                                        height: 4,
+                                        decoration: const BoxDecoration(
+                                          color: Color(0xffa8b3a9),
+                                          shape: BoxShape.circle,
+                                        ),
+                                      )
+                                    : null,
+                              ),
                             ),
-                          ),
-                        );
-                      }),
-                    ),
-                    if (_aim != null && _selected != null)
-                      IgnorePointer(
-                        child: CustomPaint(
-                          size: Size.square(_size),
-                          painter: _AimPainter(
-                            _selected!,
-                            _aim!,
-                            _ghost != null,
-                            red,
+                          );
+                        }),
+                      ),
+                      if (_aim != null && _selected != null)
+                        IgnorePointer(
+                          child: CustomPaint(
+                            size: Size.square(_size),
+                            painter: _AimPainter(
+                              _selected!,
+                              _aim!,
+                              _ghost != null,
+                              red,
+                            ),
                           ),
                         ),
-                      ),
-                  ],
+                    ],
+                  ),
                 ),
               ),
             );
