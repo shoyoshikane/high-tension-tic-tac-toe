@@ -2,16 +2,16 @@ import {test,expect} from '@playwright/test';
 async function localSignaling(page){
   await page.addInitScript(()=>{globalThis.__PEER_OPTIONS__={host:'127.0.0.1',port:9000,path:'/peerjs',secure:false,config:{iceServers:[]}};});
 }
-async function createPair(browser){
+async function createPair(browser,cloud=false){
   const a=await browser.newContext({reducedMotion:'reduce'}),b=await browser.newContext({reducedMotion:'reduce'});
   const host=await a.newPage(),guest=await b.newPage();
-  await localSignaling(host);await localSignaling(guest);
+  if(!cloud){await localSignaling(host);await localSignaling(guest);}
   await host.goto('/');await host.locator('#online').click();
-  await expect(host.locator('#invite-link')).not.toHaveValue('');
+  await expect(host.locator('#invite-link')).not.toHaveValue('',{timeout:15000});
   const invite=await host.locator('#invite-link').inputValue();
   await guest.goto(invite);
-  await expect(host.locator('#room-status')).toContainText('接続しました');
-  await expect(guest.locator('#room-status')).toContainText('接続しました');
+  await expect(host.locator('#room-status')).toContainText('接続しました',{timeout:15000});
+  await expect(guest.locator('#room-status')).toContainText('接続しました',{timeout:15000});
   return {host,guest,a,b,invite};
 }
 const cell=(page,i)=>page.locator(`[data-cell="${i}"]`);
@@ -52,6 +52,13 @@ test('full rooms reject a third player and disconnect pauses the board',async({b
   const {host,guest,a,b,invite}=await createPair(browser);
   const c=await browser.newContext(),third=await c.newPage();await localSignaling(third);await third.goto(invite);
   await expect(third.locator('#room-status')).toContainText('満員');
-  await b.close();await expect(host.locator('#room-status')).toContainText('接続が切れ');
+  await b.close();await expect(host.locator('#room-status')).toContainText('接続が切れ',{timeout:12000});
   await expect(cell(host,0)).toBeDisabled();await a.close();await c.close();
+});
+test('production PeerJS Cloud connects two browsers and shares a move',async({browser})=>{
+  test.skip(!process.env.RUN_CLOUD_SMOKE,'External broker smoke test is enabled in CI.');
+  const {host,guest,a,b}=await createPair(browser,true);
+  await cell(host,12).click();await expect(cell(guest,12).locator('.p1')).toHaveCount(1);
+  await cell(guest,0).click();await expect(cell(host,0).locator('.p2')).toHaveCount(1);
+  await a.close();await b.close();
 });

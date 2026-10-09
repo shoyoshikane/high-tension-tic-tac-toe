@@ -20,7 +20,7 @@ export class Room {
     this.onState=onState;this.onStatus=onStatus;this.state=initial();this.match=uid();this.rev=-1;
     this.peer=null;this.conn=null;this.host=false;this.role=0;this.ready=false;this.pending=false;
     this.localVote=false;this.remoteVote=false;this.guestToken=null;this.closed=false;this.attempt=0;
-    this.identity=uid();this.invite='';this.target='';this.timeout=null;
+    this.identity=uid();this.invite='';this.target='';this.timeout=null;this.heartbeat=null;this.lastSeen=0;
   }
   status(text){this.onStatus(text,this);}
   get canMove(){return this.ready&&!this.pending&&this.state.turn===this.role&&!this.state.result;}
@@ -72,17 +72,26 @@ export class Room {
     this.conn=conn;
     conn.on('open',()=>{
       if(this.closed||this.conn!==conn)return;
+      this.lastSeen=Date.now();clearInterval(this.heartbeat);
+      this.heartbeat=setInterval(()=>{
+        if(this.closed||this.conn!==conn)return;
+        if(Date.now()-this.lastSeen>6000){lost();conn.close();return;}
+        this.send({type:'ping'});
+      },1000);
       if(this.host){this.guestToken=conn.metadata.token;this.ready=true;clearTimeout(this.timeout);this.sendSnapshot();this.status('友達と接続しました。あなたは翡翠です。');}
     });
     conn.on('data',message=>{if(!this.closed&&this.conn===conn)this.receive(message);});
-    const lost=()=>{if(this.closed||this.conn!==conn)return;this.conn=null;this.ready=false;this.pending=false;this.localVote=false;this.remoteVote=false;clearTimeout(this.timeout);this.status('友達との接続が切れました。画面を開いたまま再接続してください。');};
+    const lost=()=>{if(this.closed||this.conn!==conn)return;this.conn=null;this.ready=false;this.pending=false;this.localVote=false;this.remoteVote=false;clearTimeout(this.timeout);clearInterval(this.heartbeat);this.status('友達との接続が切れました。画面を開いたまま再接続してください。');};
     conn.on('close',lost);conn.on('error',lost);
   }
   send(message){if(!this.conn?.open)return false;try{this.conn.send({...message,version:VERSION});return true;}catch{this.ready=false;this.pending=false;this.status('送信できませんでした。再接続してください。');return false;}}
   sendSnapshot(){return this.send({type:'state',match:this.match,rev:this.state.moves,log:this.state.log,votes:[this.localVote,this.remoteVote]});}
   receive(message){
     if(!message||message.version!==VERSION)return;
-    if(message.type==='rejected'){this.ready=false;clearTimeout(this.timeout);const conn=this.conn;this.conn=null;this.status('この部屋は満員、または別の対局が進行中です。新しい招待リンクをもらってください。');conn?.close();return;}
+    this.lastSeen=Date.now();
+    if(message.type==='ping'){this.send({type:'pong'});return;}
+    if(message.type==='pong')return;
+    if(message.type==='rejected'){this.ready=false;clearTimeout(this.timeout);clearInterval(this.heartbeat);const conn=this.conn;this.conn=null;this.status('この部屋は満員、または別の対局が進行中です。新しい招待リンクをもらってください。');conn?.close();return;}
     if(this.host){
       if(message.type==='move'&&this.ready){
         const out=acceptMove(this.state,message,2,this.match);
@@ -119,5 +128,5 @@ export class Room {
     if(this.host&&this.peer&&!this.peer.destroyed){if(this.peer.disconnected)this.peer.reconnect();else this.status(this.invite?'招待リンクを友達に送ってください。':'接続を準備しています…');return;}
     const old=this.peer;this.peer=null;this.conn=null;old?.destroy();this.start(this.target);
   }
-  close(){this.closed=true;this.attempt++;clearTimeout(this.timeout);this.ready=false;this.conn?.close();this.peer?.destroy();}
+  close(){this.closed=true;this.attempt++;clearTimeout(this.timeout);clearInterval(this.heartbeat);this.ready=false;this.conn?.close();this.peer?.destroy();}
 }

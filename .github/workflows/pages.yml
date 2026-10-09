@@ -23,6 +23,8 @@ jobs:
       - run: npm test
       - run: npx playwright install --with-deps chromium
       - run: npm run test:browser
+        env:
+          RUN_CLOUD_SMOKE: '1'
       - uses: actions/configure-pages@v5
       - uses: actions/upload-pages-artifact@v4
         with:
