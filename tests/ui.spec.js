@@ -11,8 +11,9 @@ const startDrag=async(page,i,dx,dy)=>{
 };
 const log=page=>page.evaluate(()=>JSON.parse(localStorage.getItem('high-tension-v1')).state.log);
 const expectMove=async(page,action)=>{
-  // Flush queued input/timers without reaching the CPU's 600 ms response.
-  await page.clock.runFor(32);
+  // A chain has two 160 ms animation steps. Finish both even when the
+  // browser does not honor reduced motion, before the CPU's 600 ms reply.
+  await page.clock.runFor(400);
   try{await expect.poll(async()=> (await log(page)).at(-1)).toMatchObject(action);}
   catch(error){
     console.error('Gesture diagnostics:',JSON.stringify(await page.evaluate(()=>({
