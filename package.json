@@ -3,12 +3,14 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "test": "node --test engine.test.js protocol.test.js",
+    "test": "node --test engine.test.js protocol.test.js ui-events.test.js",
     "start": "python3 -m http.server 4173 --directory dist",
-    "test:browser": "playwright test"
+    "test:browser": "playwright test",
+    "test:ui": "playwright test --config playwright.ui.config.js"
   },
   "devDependencies": {
     "@playwright/test": "1.61.1",
+    "jsdom": "26.1.0",
     "peer": "1.0.2",
     "peerjs": "1.5.5"
   }

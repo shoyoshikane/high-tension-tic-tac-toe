@@ -1,0 +1,90 @@
+import {test} from 'node:test';
+import assert from 'node:assert/strict';
+import {readFile} from 'node:fs/promises';
+import {JSDOM} from 'jsdom';
+
+const html=await readFile(new URL('./dist/index.html',import.meta.url),'utf8');
+const seed=[{type:'place',i:0,player:1},{type:'place',i:2,player:2}];
+const realSetTimeout=globalThis.setTimeout,realClearTimeout=globalThis.clearTimeout;
+let counter=0;
+async function setup(log=seed){
+  const dom=new JSDOM(html,{url:'https://game.test/'}),w=dom.window;
+  const cpuTimers=[];
+  Object.assign(globalThis,{document:w.document,history:w.history,location:w.location,matchMedia:()=>({matches:true}),addEventListener:w.addEventListener.bind(w)});
+  globalThis.setTimeout=(fn,ms,...args)=>{if(ms!==600)return realSetTimeout(fn,ms,...args);const timer={cpu:true,fn,cancelled:false};cpuTimers.push(timer);return timer;};
+  globalThis.clearTimeout=timer=>{if(timer?.cpu)timer.cancelled=true;else realClearTimeout(timer);};
+  const captures=new Set();
+  w.Element.prototype.setPointerCapture=id=>captures.add(id);
+  w.Element.prototype.hasPointerCapture=id=>captures.has(id);
+  w.Element.prototype.releasePointerCapture=id=>captures.delete(id);
+  w.Element.prototype.getBoundingClientRect=function(){
+    const i=Number(this.dataset.cell??0),x=100+(i%5)*80,y=100+Math.floor(i/5)*80,size=this.id==='board'?400:80;
+    return {x,y,left:x,top:y,right:x+size,bottom:y+size,width:size,height:size};
+  };
+  w.localStorage.setItem('high-tension-v1',JSON.stringify({state:{log},mode:'cpu'}));
+  globalThis.localStorage=w.localStorage;
+  await import(new URL(`./dist/app.js?events=${++counter}`,import.meta.url));
+  const cell=i=>w.document.querySelector(`[data-cell="${i}"]`),board=w.document.getElementById('board');
+  const pointer=(type,x,y,{touch=false,id=1,target=board}={})=>{
+    const event=new w.MouseEvent(type,{bubbles:true,cancelable:true,button:0,clientX:x,clientY:y});
+    Object.defineProperties(event,{pointerId:{value:id},isPrimary:{value:true},pointerType:{value:touch?'touch':'mouse'}});
+    target.dispatchEvent(event);
+  };
+  const start=(x=140,y=140,opts={})=>pointer('pointerdown',x,y,{target:cell(0),...opts});
+  const saved=()=>JSON.parse(w.localStorage.getItem('high-tension-v1')).state.log;
+  return {w,cell,board,pointer,start,saved,runCpu:()=>cpuTimers.findLast(t=>!t.cancelled)?.fn(),close:()=>dom.window.close()};
+}
+test('the UI only offers CPU/online and identifies black as first, white as second',async()=>{
+  const ui=await setup();
+  assert.equal(ui.w.document.querySelectorAll('.modes button').length,2);
+  assert.equal(ui.w.document.getElementById('local'),null);
+  assert.match(ui.w.document.querySelector('[data-player="1"]').textContent,/先攻/);
+  assert.match(ui.w.document.querySelector('[data-player="2"]').textContent,/後攻/);
+  assert.ok(ui.cell(0).querySelector('.stone.p1'));assert.ok(ui.cell(2).querySelector('.stone.p2'));ui.close();
+});
+test('drag previews both pieces in a collision, then release commits a single move',async()=>{
+  const ui=await setup();ui.start();ui.pointer('pointermove',210,140);
+  assert.equal(ui.w.document.getElementById('drag-guide').hasAttribute('hidden'),false);
+  assert.ok(ui.cell(1).querySelector('.p1'));assert.ok(ui.cell(4).querySelector('.p2'));
+  assert.equal(ui.saved().length,2);
+  ui.pointer('pointerup',210,140);ui.cell(12).click();
+  assert.equal(ui.w.document.getElementById('drag-guide').hasAttribute('hidden'),true);
+  assert.equal(ui.saved().length,3);assert.deepEqual(ui.saved().at(-1),{type:'flick',i:0,dr:0,dc:1,player:1});
+  assert.ok(ui.cell(1).querySelector('.p1'));assert.ok(ui.cell(4).querySelector('.p2'));ui.close();
+});
+test('tiny, invalid, outside, returned and interrupted gestures leave the board unchanged',async()=>{
+  for(const kind of ['tiny','invalid','outside','returned','cancel','escape']){
+    const ui=await setup();ui.start();
+    if(kind==='tiny'){ui.pointer('pointermove',148,140);ui.pointer('pointerup',148,140);}
+    else if(kind==='invalid'){ui.pointer('pointermove',115,140);ui.pointer('pointerup',115,140);}
+    else{
+      ui.pointer('pointermove',210,140);
+      if(kind==='outside'){ui.pointer('pointermove',550,140);ui.pointer('pointerup',550,140);}
+      if(kind==='returned'){ui.pointer('pointermove',140,140);ui.pointer('pointerup',140,140);}
+      if(kind==='cancel')ui.pointer('pointercancel',210,140);
+      if(kind==='escape'){ui.w.document.dispatchEvent(new ui.w.KeyboardEvent('keydown',{key:'Escape',bubbles:true}));ui.pointer('pointerup',210,140);}
+    }
+    assert.equal(ui.saved().length,2,kind);assert.ok(ui.cell(0).querySelector('.p1'),kind);assert.ok(ui.cell(2).querySelector('.p2'),kind);ui.close();
+  }
+});
+test('touch drags snap diagonally and cannot move the opponent piece',async()=>{
+  const ui=await setup();ui.start(140,140,{touch:true,id:10});ui.pointer('pointermove',210,210,{touch:true,id:10});ui.pointer('pointerup',210,210,{touch:true,id:10});
+  assert.deepEqual(ui.saved().at(-1),{type:'flick',i:0,dr:1,dc:1,player:1});assert.ok(ui.cell(24).querySelector('.p1'));
+  ui.pointer('pointerdown',300,140,{target:ui.cell(2)});ui.pointer('pointermove',350,140);ui.pointer('pointerup',350,140);assert.equal(ui.saved().length,3);ui.close();
+});
+test('keyboard selects, previews and commits, while Escape cancels',async()=>{
+  const ui=await setup();ui.cell(0).click();
+  const press=key=>ui.w.document.dispatchEvent(new ui.w.KeyboardEvent('keydown',{key,bubbles:true,cancelable:true}));
+  press('ArrowRight');assert.equal(ui.saved().length,2);press('Escape');assert.ok(ui.cell(0).querySelector('.p1'));
+  ui.cell(0).click();press('ArrowRight');press('Enter');assert.equal(ui.saved().length,3);assert.ok(ui.cell(1).querySelector('.p1'));ui.close();
+});
+test('placing still works with no action-mode switch',async()=>{
+  const ui=await setup();ui.cell(12).click();assert.deepEqual(ui.saved().at(-1),{type:'place',i:12,player:1});assert.ok(ui.cell(12).querySelector('.p1'));ui.close();
+});
+test('CPU plays white and undo restores the human black turn',async()=>{
+  const ui=await setup([]);ui.cell(0).click();ui.runCpu();
+  assert.equal(ui.saved().length,2);assert.equal(ui.saved()[1].player,2);
+  assert.match(ui.w.document.getElementById('turn-label').textContent,/あなたの番/);
+  ui.w.document.getElementById('undo').click();assert.equal(ui.saved().length,0);
+  assert.match(ui.w.document.getElementById('turn-label').textContent,/あなたの番/);ui.close();
+});

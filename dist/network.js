@@ -78,7 +78,7 @@ export class Room {
         if(Date.now()-this.lastSeen>6000){lost();conn.close();return;}
         this.send({type:'ping'});
       },1000);
-      if(this.host){this.guestToken=conn.metadata.token;this.ready=true;clearTimeout(this.timeout);this.sendSnapshot();this.status('友達と接続しました。あなたは翡翠です。');}
+      if(this.host){this.guestToken=conn.metadata.token;this.ready=true;clearTimeout(this.timeout);this.sendSnapshot();this.status('友達と接続しました。あなたは先攻（黒）です。');}
     });
     conn.on('data',message=>{if(!this.closed&&this.conn===conn)this.receive(message);});
     const lost=()=>{if(this.closed||this.conn!==conn)return;this.conn=null;this.ready=false;this.pending=false;this.localVote=false;this.remoteVote=false;clearTimeout(this.timeout);clearInterval(this.heartbeat);this.status('友達との接続が切れました。画面を開いたまま再接続してください。');};
@@ -122,7 +122,7 @@ export class Room {
     else this.sendSnapshot();
     this.voteStatus();
   }
-  voteStatus(){this.status(this.localVote?'もう一局を希望しました。友達の返事を待っています。':this.remoteVote?'友達がもう一局を希望しています。「もう一局」で始めます。':`友達と接続しました。あなたは${this.role===1?'翡翠':'琥珀'}です。`);}
+  voteStatus(){this.status(this.localVote?'もう一局を希望しました。友達の返事を待っています。':this.remoteVote?'友達がもう一局を希望しています。「もう一局」で始めます。':`友達と接続しました。あなたは${this.role===1?'先攻（黒）':'後攻（白）'}です。`);}
   retry(){
     if(this.closed||this.ready)return;
     if(this.host&&this.peer&&!this.peer.destroyed){if(this.peer.disconnected)this.peer.reconnect();else this.status(this.invite?'招待リンクを友達に送ってください。':'接続を準備しています…');return;}
