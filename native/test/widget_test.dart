@@ -7,6 +7,29 @@ import 'package:high_tension_tic_tac_toe/main.dart';
 import 'fakes.dart';
 
 void main() {
+  testWidgets(
+    'reach badges identify both colors and disappear when the threat ends',
+    (tester) async {
+      final game = GameController();
+      addTearDown(game.dispose);
+      final b = List.filled(25, 0);
+      for (final i in [0, 1, 7]) {
+        b[i] = 1;
+      }
+      for (final i in [17, 20, 21]) {
+        b[i] = 2;
+      }
+      game.state = GameState(board: b);
+      await tester.pumpWidget(GameApp(game: game));
+      expect(find.text('先攻 リーチ'), findsOneWidget);
+      expect(find.text('後攻 リーチ'), findsOneWidget);
+      game.state = GameState();
+      game.changed();
+      await tester.pump();
+      expect(find.byKey(const Key('reach-1')), findsNothing);
+      expect(find.byKey(const Key('reach-2')), findsNothing);
+    },
+  );
   testWidgets('placement, drag preview, cancellation, commit and undo', (
     tester,
   ) async {

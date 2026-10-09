@@ -218,6 +218,32 @@ GameState? restore(dynamic log) {
   return state;
 }
 
+// A reach requires an actual legal winning move, including flick chains.
+// Merely having two aligned stones may not be enough under placement rules.
+List<int> playersInReach(GameState state) {
+  if (state.result != null) return const [];
+  final players = <int>[];
+  for (final player in [1, 2]) {
+    if (state.board.where((p) => p == player).length < 2) continue;
+    final position = GameState(
+      board: state.board,
+      turn: player,
+      previous: state.previous,
+    );
+    for (final move in actions(position)) {
+      final next = preview(position, move)!;
+      final winners = lines(
+        next.board,
+      ).map((cells) => next.board[cells.first]).toSet();
+      if (winners.length == 1 && winners.single == player) {
+        players.add(player);
+        break;
+      }
+    }
+  }
+  return List.unmodifiable(players);
+}
+
 Move? choose(GameState state, {Random? random}) {
   random ??= Random();
   var best = double.negativeInfinity;

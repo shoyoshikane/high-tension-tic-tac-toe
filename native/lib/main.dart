@@ -352,6 +352,17 @@ class _GameScreenState extends State<GameScreen> {
                         children: [_player(1, ink), _player(2, ink)],
                       ),
                       const SizedBox(height: 18),
+                      if (game.reachPlayers.isNotEmpty) ...[
+                        Wrap(
+                          spacing: 8,
+                          runSpacing: 8,
+                          alignment: WrapAlignment.center,
+                          children: game.reachPlayers
+                              .map((p) => _reach(p, watching))
+                              .toList(),
+                        ),
+                        const SizedBox(height: 14),
+                      ],
                       GameBoard(game: game),
                       const SizedBox(height: 20),
                       Row(
@@ -422,6 +433,41 @@ class _GameScreenState extends State<GameScreen> {
       );
     },
   );
+  Widget _reach(int player, bool watching) {
+    final label = '${player == 1 ? '先攻' : '後攻'} リーチ';
+    return Semantics(
+      liveRegion: true,
+      excludeSemantics: true,
+      label: '$label。次の一手で勝てる手があります。',
+      child: Container(
+        key: Key('reach-$player'),
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+        decoration: BoxDecoration(
+          color: watching ? const Color(0xff9e001d) : const Color(0xffffe6a7),
+          borderRadius: BorderRadius.circular(24),
+          border: Border.all(
+            color: watching ? Colors.white70 : const Color(0xffd1a04e),
+          ),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            _miniStone(player, 9),
+            const SizedBox(width: 8),
+            Text(
+              label,
+              style: TextStyle(
+                fontSize: 11,
+                fontWeight: FontWeight.w600,
+                color: watching ? Colors.white : const Color(0xff775116),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
   Widget _mode(String title, bool active, Color ink, VoidCallback action) =>
       TextButton(
         style: TextButton.styleFrom(
@@ -652,7 +698,16 @@ class _GameBoardState extends State<GameBoard> {
       decoration: BoxDecoration(
         color: red ? const Color(0xffcb0924) : const Color(0xfffafbf7),
         borderRadius: BorderRadius.circular(22),
-        border: Border.all(color: red ? const Color(0xffff8594) : Colors.white),
+        border: Border.all(
+          color: game.reachPlayers.isNotEmpty
+              ? red
+                    ? Colors.white70
+                    : const Color(0xffd1a04e)
+              : red
+              ? const Color(0xffff8594)
+              : Colors.white,
+          width: game.reachPlayers.isNotEmpty ? 2 : 1,
+        ),
         boxShadow: const [
           BoxShadow(
             color: Color(0x2024352b),

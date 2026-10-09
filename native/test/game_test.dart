@@ -6,6 +6,40 @@ import 'package:high_tension_tic_tac_toe/game.dart';
 
 void main() {
   test(
+    'reach requires a legal winning flick and excludes reversal, draws and finished games',
+    () {
+      final b = List.filled(25, 0);
+      b[0] = b[1] = 1;
+      expect(playersInReach(GameState(board: b)), isEmpty);
+      b[7] = 1;
+      final state = GameState(board: b, turn: 2);
+      expect(playersInReach(state), [1]);
+      final winning = play(
+        GameState(board: b),
+        const Move.flick(7, -1, 0),
+      )!.state;
+      expect(playersInReach(winning), isEmpty);
+      expect(
+        playersInReach(GameState(board: b, previous: boardKey(winning.board))),
+        isEmpty,
+      );
+      final simultaneous = List.filled(25, 0);
+      for (final i in [2, 10, 11]) {
+        simultaneous[i] = 1;
+      }
+      for (final i in [17, 20, 21]) {
+        simultaneous[i] = 2;
+      }
+      final drawPosition = GameState(board: simultaneous);
+      expect(play(drawPosition, const Move.flick(2, 1, 0))!.state.result, 0);
+      expect(playersInReach(drawPosition), isNot(contains(1)));
+      for (final i in [17, 20, 21]) {
+        b[i] = 2;
+      }
+      expect(playersInReach(GameState(board: b)), [1, 2]);
+    },
+  );
+  test(
     'Dart matches the Web engine state and legal moves throughout recorded games',
     () {
       final corpus =

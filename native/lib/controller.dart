@@ -34,6 +34,16 @@ class GameController extends ChangeNotifier {
       !thinking &&
       (online ? room?.canMove == true : state.turn == 1);
   bool get canUndo => !online && !thinking && _undo.isNotEmpty;
+  GameState? _reachState;
+  List<int> _reachPlayers = const [];
+  List<int> get reachPlayers {
+    if (!identical(_reachState, state)) {
+      _reachState = state;
+      _reachPlayers = playersInReach(state);
+    }
+    return _reachPlayers;
+  }
+
   void changed() {
     if (!_disposed) {
       if (online && room != null && room!.target.isNotEmpty) {
