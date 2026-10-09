@@ -193,8 +193,13 @@ function startRoom(target='',spectator=false){
   render();room.start(target,spectator);
 }
 $('copy-invite').onclick=async()=>{
-  $('room-status').hidden=false;
   const field=$('invite-link');
+  if(!field.value)return;
+  if(navigator.share){
+    try{await navigator.share({title:'ハイテンション三目並べ',text:'一緒にハイテンション三目並べを遊ぼう！',url:field.value});return;}
+    catch(error){if(error.name==='AbortError')return;}
+  }
+  $('room-status').hidden=false;
   try{await navigator.clipboard.writeText(field.value);$('room-status').textContent='コピーしました';}
   catch{field.hidden=false;field.focus();field.select();$('room-status').textContent='リンクをコピーしてください';}
 };

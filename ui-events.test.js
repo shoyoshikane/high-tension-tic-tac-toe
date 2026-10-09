@@ -8,6 +8,25 @@ const html=await readFile(new URL('./dist/index.html',import.meta.url),'utf8');
 const seed=[{type:'place',i:0,player:1},{type:'place',i:2,player:2}];
 const realSetTimeout=globalThis.setTimeout,realClearTimeout=globalThis.clearTimeout;
 let counter=0;
+test('invite sharing uses the device share menu, falls back to copying, and leaves cancellation alone',async()=>{
+  const originalNavigator=Object.getOwnPropertyDescriptor(globalThis,'navigator');
+  try{
+    for(const kind of ['share','unsupported','failed','cancelled','manual']){
+      const ui=await setup([]);let shared=null,copied=null;
+      try{
+        const navigator={clipboard:{writeText:async url=>{if(kind==='manual')throw new Error('Clipboard unavailable');copied=url;}}};
+        if(!['unsupported','manual'].includes(kind))navigator.share=async data=>{shared=data;if(kind==='failed')throw new Error('Sharing unavailable');if(kind==='cancelled')throw Object.assign(new Error('Cancelled'),{name:'AbortError'});};
+        Object.defineProperty(globalThis,'navigator',{configurable:true,value:navigator});
+        const link='https://game.test/#room=host';ui.w.document.getElementById('invite-link').value=link;
+        await ui.w.document.getElementById('copy-invite').onclick();
+        if(kind==='share'){assert.equal(shared.url,link);assert.equal(shared.title,'ハイテンション三目並べ');assert.equal(copied,null);}
+        if(['unsupported','failed'].includes(kind))assert.equal(copied,link);
+        if(kind==='cancelled')assert.equal(copied,null);
+        if(kind==='manual')assert.equal(ui.w.document.getElementById('invite-link').hidden,false);
+      }finally{ui.close();}
+    }
+  }finally{if(originalNavigator)Object.defineProperty(globalThis,'navigator',originalNavigator);else delete globalThis.navigator;}
+});
 async function setup(log=seed,watch=false){
   const dom=new JSDOM(html,{url:watch?'https://game.test/#room=host&watch=1':'https://game.test/'}),w=dom.window;
   const originalPeer=globalThis.Peer;let peer;
