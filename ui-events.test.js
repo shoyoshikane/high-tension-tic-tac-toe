@@ -2,13 +2,19 @@ import {test} from 'node:test';
 import assert from 'node:assert/strict';
 import {readFile} from 'node:fs/promises';
 import {JSDOM} from 'jsdom';
+import {EventEmitter} from 'node:events';
 
 const html=await readFile(new URL('./dist/index.html',import.meta.url),'utf8');
 const seed=[{type:'place',i:0,player:1},{type:'place',i:2,player:2}];
 const realSetTimeout=globalThis.setTimeout,realClearTimeout=globalThis.clearTimeout;
 let counter=0;
-async function setup(log=seed){
-  const dom=new JSDOM(html,{url:'https://game.test/'}),w=dom.window;
+async function setup(log=seed,watch=false){
+  const dom=new JSDOM(html,{url:watch?'https://game.test/#room=host&watch=1':'https://game.test/'}),w=dom.window;
+  const originalPeer=globalThis.Peer;let peer;
+  if(watch)globalThis.Peer=class extends EventEmitter{
+    constructor(){super();peer=this;}
+    connect(){this.conn=new EventEmitter();this.conn.open=true;this.conn.send=()=>{};this.conn.close=()=>this.conn.emit('close');return this.conn;}
+  };
   const cpuTimers=[];
   Object.assign(globalThis,{document:w.document,history:w.history,location:w.location,matchMedia:()=>({matches:true}),addEventListener:w.addEventListener.bind(w)});
   globalThis.setTimeout=(fn,ms,...args)=>{if(ms!==600)return realSetTimeout(fn,ms,...args);const timer={cpu:true,fn,cancelled:false};cpuTimers.push(timer);return timer;};
@@ -24,6 +30,7 @@ async function setup(log=seed){
   w.localStorage.setItem('high-tension-v1',JSON.stringify({state:{log},mode:'cpu'}));
   globalThis.localStorage=w.localStorage;
   await import(new URL(`./dist/app.js?events=${++counter}`,import.meta.url));
+  if(watch){peer.emit('open','viewer');peer.conn.emit('open');peer.conn.emit('data',{type:'state',version:1,match:'match',rev:seed.length,log:seed,votes:[false,false],playing:true});}
   const cell=i=>w.document.querySelector(`[data-cell="${i}"]`),board=w.document.getElementById('board');
   const pointer=(type,x,y,{touch=false,id=1,target=board}={})=>{
     const event=new w.MouseEvent(type,{bubbles:true,cancelable:true,button:0,clientX:x,clientY:y});
@@ -32,8 +39,23 @@ async function setup(log=seed){
   };
   const start=(x=140,y=140,opts={})=>pointer('pointerdown',x,y,{target:cell(0),...opts});
   const saved=()=>JSON.parse(w.localStorage.getItem('high-tension-v1')).state.log;
-  return {w,cell,board,pointer,start,saved,runCpu:()=>cpuTimers.findLast(t=>!t.cancelled)?.fn(),close:()=>dom.window.close()};
+  return {w,cell,board,pointer,start,saved,peer,runCpu:()=>cpuTimers.findLast(t=>!t.cancelled)?.fn(),close:()=>{peer?.conn.close();globalThis.Peer=originalPeer;dom.window.close();}};
 }
+test('spectator UI blocks pointer, click and keyboard moves and hides rematch controls',async()=>{
+  const ui=await setup([],true);
+  try{
+    assert.match(ui.w.document.getElementById('turn-label').textContent,/観戦中/);
+    assert.equal(ui.w.document.getElementById('reset').hidden,true);assert.equal(ui.w.document.getElementById('undo').hidden,true);
+    assert.ok([...ui.board.children].every(el=>el.disabled));
+    assert.doesNotMatch(ui.w.document.getElementById('players').textContent,/あなた|相手/);
+    ui.start();ui.pointer('pointermove',210,140);ui.pointer('pointerup',210,140);ui.cell(12).click();
+    ui.cell(0).dispatchEvent(new ui.w.MouseEvent('click',{bubbles:true}));
+    for(const key of ['Enter','ArrowRight','Enter'])ui.w.document.dispatchEvent(new ui.w.KeyboardEvent('keydown',{key,bubbles:true}));
+    assert.equal(ui.board.querySelectorAll('.stone').length,2);assert.equal(ui.saved().length,0);
+    ui.peer.conn.emit('data',{type:'state',version:1,match:'match',rev:2,log:seed,votes:[false,false],playing:false});
+    assert.match(ui.w.document.getElementById('turn-label').textContent,/接続待ち/);
+  }finally{ui.close();}
+});
 test('the UI only offers CPU/online and identifies black as first, white as second',async()=>{
   const ui=await setup();
   assert.equal(ui.w.document.querySelectorAll('.modes button').length,2);

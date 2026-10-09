@@ -47,6 +47,40 @@ test('full rooms reject a third player and disconnect pauses the board',async({b
   await b.close();await expect(host.locator('#room-status')).toContainText('接続が切れ',{timeout:12000});
   await expect(cell(host,0)).toBeDisabled();await a.close();await c.close();
 });
+test('spectators share moves and rematches, reconnect, and cannot operate the board',async({browser})=>{
+  const {host,guest,a,b}=await createPair(browser);
+  const c=await browser.newContext({reducedMotion:'reduce'}),d=await browser.newContext({reducedMotion:'reduce'});
+  try{
+    const watch=await host.locator('#watch-link').inputValue();expect(watch).toContain('watch=1');
+    const viewers=[await c.newPage(),await d.newPage()];
+    for(const viewer of viewers){
+      await localSignaling(viewer);await viewer.goto(watch);
+      await expect(viewer.locator('#turn-label')).toContainText('観戦中');
+      await expect(cell(viewer,0)).toBeDisabled();await expect(viewer.locator('#reset')).toBeHidden();
+      await expect(viewer.locator('#undo')).toBeHidden();
+    }
+    await cell(host,0).click();await expect(cell(guest,0).locator('.p1')).toHaveCount(1);
+    await cell(guest,2).click();await expect(cell(host,2).locator('.p2')).toHaveCount(1);
+    for(const viewer of viewers){
+      await expect(viewer.locator('.board .stone')).toHaveCount(2);
+      await expect(viewer.locator('#turn-label')).toContainText('先攻');
+      // Even a synthetic event must not bypass the disabled controls.
+      await cell(viewer,12).dispatchEvent('click');
+    }
+    await expect(host.locator('.board .stone')).toHaveCount(2);
+    const origin=await cell(host,0).boundingBox();
+    await host.mouse.move(origin.x+origin.width/2,origin.y+origin.height/2);await host.mouse.down();
+    await host.mouse.move(origin.x+origin.width/2+55,origin.y+origin.height/2,{steps:5});await host.mouse.up();
+    for(const viewer of viewers){await expect(cell(viewer,1).locator('.p1')).toHaveCount(1);await expect(cell(viewer,4).locator('.p2')).toHaveCount(1);}
+    await viewers[0].reload();await expect(cell(viewers[0],4).locator('.p2')).toHaveCount(1);
+    await host.locator('#reset').click();await host.locator('#reset-confirm').click();
+    await expect(guest.locator('#room-status')).toContainText('もう一局を希望');
+    await guest.locator('#reset').click();await guest.locator('#reset-confirm').click();
+    for(const viewer of viewers)await expect(viewer.locator('.board .stone')).toHaveCount(0);
+    await b.close();
+    for(const viewer of viewers)await expect(viewer.locator('#turn-label')).toContainText('接続待ち',{timeout:12000});
+  }finally{await a.close();await b.close();await c.close();await d.close();}
+});
 test('production PeerJS Cloud connects two browsers and shares a move',async({browser})=>{
   test.skip(!process.env.RUN_CLOUD_SMOKE,'External broker smoke test is enabled in CI.');
   const {host,guest,a,b}=await createPair(browser,true);

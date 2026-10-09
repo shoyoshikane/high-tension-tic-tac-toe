@@ -32,19 +32,22 @@ function render(display=s.board){
   $('invite-link').value=room?.invite??'';
   $('invite-wrap').hidden=!room?.invite;
   $('copy-invite').disabled=!room?.invite;
+  $('watch-link').value=room?.watchInvite??'';
+  $('watch-wrap').hidden=!room?.watchInvite;
   $('reconnect').hidden=!!room?.ready;
   $('reset').textContent=mode==='online'?'もう一局':'新しい対局';
   $('reset').disabled=mode==='online'&&(!room?.ready||room.localVote);
+  $('reset').hidden=mode==='online'&&!!room?.spectator;
   $('undo').disabled=!undo.length||busy||mode==='online';
   $('undo').hidden=mode==='online';
   $('turn-dot').dataset.player=s.result&&s.result!=='draw'?s.result:s.turn;
   $('turn-label').textContent=s.result?(s.result==='draw'?'引き分け':`${names[s.result]}の勝ち`):
     mode==='online'&&!room?.ready?'接続待ち':
     mode==='cpu'&&s.turn===2?'CPUの番':
-    mode==='online'?(room.role===s.turn?'あなたの番':'相手の番'):'あなたの番';
+    mode==='online'?(room.spectator?(room.playing?`観戦中 · ${names[s.turn]}の番`:'観戦中 · 接続待ち'):room.role===s.turn?'あなたの番':'相手の番'):'あなたの番';
   $('players').innerHTML=[1,2].map(p=>{
     const remaining=5-s.board.filter(v=>v===p).length;
-    const tag=mode==='online'?(p===room?.role?'あなた':'相手'):(p===1?'あなた':'CPU');
+    const tag=mode==='online'?(room?.spectator?'':p===room?.role?'あなた':'相手'):(p===1?'あなた':'CPU');
     return `<div class="player ${s.turn===p&&!s.result?'current':''}" data-player="${p}"><span class="player-name">${names[p]}<small>${tag}</small></span><div class="reserve" aria-label="${names[p]}の残りのコマ ${remaining}個">${Array.from({length:5},(_,i)=>`<span class="reserve-dot p${p} ${i<remaining?'':'used'}"></span>`).join('')}</div></div>`;
   }).join('');
   if(focusedCell!==undefined)$('board').querySelector(`[data-cell="${focusedCell}"]`)?.focus({preventScroll:true});
@@ -80,7 +83,8 @@ function reach(){
 }
 function hint(){
   if(s.result)return s.result==='draw'?'もう一局、どうぞ。':'3つ、揃いました。';
-  if(mode==='online'&&!room?.ready)return '招待リンクで相手を呼ぶ';
+  if(mode==='online'&&!room?.ready)return room?.host?'招待リンクで相手を呼ぶ':room?.spectator?'観戦の接続を確認してください':'対戦の接続を確認してください';
+  if(mode==='online'&&room?.spectator)return room.playing?'観戦中':'対戦相手の接続を待っています';
   if(blocked())return mode==='cpu'?'考えています…':'相手の手を待っています';
   return reach()||'空きマスをタップ · コマをドラッグ';
 }
@@ -178,21 +182,24 @@ $('undo').onclick=()=>{
 };
 $('rules-open').onclick=()=>$('rules').showModal();
 $('rules-close').onclick=()=>$('rules').close();
-function startRoom(target=''){
+function startRoom(target='',spectator=false){
   roomText='接続を準備しています…';
   room=new Room({onState:(state,steps)=>animate(state,steps),onStatus:text=>{
     roomText=text;
     if(!busy){if(blocked())clearSelection();render();$('message').textContent=hint();}
     else $('room-status').textContent=text;
   }});
-  render();room.start(target);
+  render();room.start(target,spectator);
 }
-$('copy-invite').onclick=async()=>{
+function copyLink(kind){return async()=>{
   $('room-status').hidden=false;
-  try{await navigator.clipboard.writeText(room.invite);$('room-status').textContent='コピーしました';}
-  catch{$('invite-link').hidden=false;$('invite-link').focus();$('invite-link').select();$('room-status').textContent='リンクをコピーしてください';}
-};
+  const field=$(kind==='watch'?'watch-link':'invite-link');
+  try{await navigator.clipboard.writeText(field.value);$('room-status').textContent='コピーしました';}
+  catch{field.hidden=false;field.focus();field.select();$('room-status').textContent='リンクをコピーしてください';}
+};}
+$('copy-invite').onclick=copyLink('invite');
+$('copy-watch').onclick=copyLink('watch');
 $('reconnect').onclick=()=>room?.retry();
-addEventListener('beforeunload',event=>{if(mode==='online'&&room?.ready){event.preventDefault();event.returnValue='';}});
-const target=new URLSearchParams(location.hash.slice(1)).get('room');
-if(target&&/^[a-zA-Z0-9_-]{1,100}$/.test(target)){mode='online';s=initial();startRoom(target);}else settle();
+addEventListener('beforeunload',event=>{if(mode==='online'&&room?.ready&&!room.spectator){event.preventDefault();event.returnValue='';}});
+const params=new URLSearchParams(location.hash.slice(1)),target=params.get('room');
+if(target&&/^[a-zA-Z0-9_-]{1,100}$/.test(target)){mode='online';s=initial();startRoom(target,params.get('watch')==='1');}else settle();
