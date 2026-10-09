@@ -33,6 +33,8 @@ flutter run -d chrome
 
 初回のbootstrapでAndroid・iOS・Webの雛形を生成し、表示名、権限、招待リンクの設定を適用して依存パッケージを取得します。雛形は生成物として扱い、ゲームのソースは `native/lib/` に置きます。WebのHTMLは `native/tool/web/index.html` で管理します。
 
+UIにはNoto Sans JP（SIL Open Font License）を同梱します。bootstrapは固定したGoogle Fontsの原本を検証し、FontTools 4.60.1で通常・見出し用のフォントを生成します。ゲーム中の文字とかな・英数字を含め、初回の転送量を抑えます。Python 3と初回ダウンロード用のネットワーク接続が必要です。文字を追加したときはbootstrapを再実行してください。
+
 ネイティブ版はAndroid SDKまたはXcode、iOSの依存関係用にCocoaPodsを用意し、`flutter doctor -v` で確認してください。接続した端末・シミュレーターを `flutter devices` で確認し、`flutter run -d <端末ID>` で起動できます。
 
 共有する招待URLはWeb版を開きます。アプリでは「オンライン対戦」の招待リンク欄へ貼り付けて参加できます。`hightension://join?room=部屋ID` のカスタムURLにも対応します。HTTPSの招待リンクでインストール済みアプリを自動的に開くUniversal Links／Android App Linksは未設定です。

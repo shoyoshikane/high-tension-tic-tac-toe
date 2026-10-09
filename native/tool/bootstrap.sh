@@ -10,4 +10,5 @@ done
 if [ ! -f .metadata ]; then cp "$scaffold/app/.metadata" .metadata; fi
 cp tool/web/index.html web/index.html
 python3 tool/configure_platforms.py
+python3 tool/fonts.py
 flutter pub get

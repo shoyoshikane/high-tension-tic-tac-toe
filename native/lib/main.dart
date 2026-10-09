@@ -19,6 +19,11 @@ Future<void> startGame({
   void Function(GameController)? onReady,
 }) async {
   WidgetsFlutterBinding.ensureInitialized();
+  LicenseRegistry.addLicense(() async* {
+    yield LicenseEntryWithLineBreaks([
+      'Noto Sans JP',
+    ], await rootBundle.loadString('assets/fonts/OFL.txt'));
+  });
   final links = AppLinks(), game = GameController(peerFactory: peerFactory);
   await game.load();
   final initial = kIsWeb ? Uri.base : await links.getInitialLink();
@@ -41,6 +46,7 @@ class GameApp extends StatelessWidget {
     debugShowCheckedModeBanner: false,
     theme: ThemeData(
       useMaterial3: true,
+      fontFamily: 'Noto Sans JP',
       colorScheme: ColorScheme.fromSeed(seedColor: const Color(0xff354e3d)),
       scaffoldBackgroundColor: const Color(0xffeff0ed),
     ),
