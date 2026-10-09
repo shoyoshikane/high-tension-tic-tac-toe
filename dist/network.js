@@ -44,13 +44,14 @@ export class Room {
         if(!this.host||this.closed){conn.on('open',()=>conn.close());return;}
         const meta=conn.metadata;
         if(meta?.version===VERSION&&meta.watch===true){this.attachWatcher(conn);return;}
-        if(meta?.version!==VERSION || typeof meta.token!=='string' || meta.token.length>100 || (this.guestToken&&this.guestToken!==meta.token)||this.conn){
+        if(meta?.version!==VERSION || typeof meta.token!=='string' || meta.token.length>100){
           const reject=()=>{if(conn.open)conn.send({type:'rejected',version:VERSION});};
           let timeout;
           conn.on('open',()=>{reject();timeout=setTimeout(()=>conn.close(),20000);});
           conn.on('data',message=>{if(message?.version!==VERSION)return;if(message.type==='sync')reject();if(message.type==='rejected-ack')conn.close();});
           conn.on('close',()=>clearTimeout(timeout));conn.on('error',()=>{clearTimeout(timeout);conn.close();});return;
         }
+        if((this.guestToken&&this.guestToken!==meta.token)||this.conn){this.attachWatcher(conn);return;}
         this.attach(conn);
       });
       peer.on('disconnected',()=>{
@@ -81,7 +82,7 @@ export class Room {
     const send=message=>{try{if(conn.open)conn.send({...message,version:VERSION});}catch{remove();conn.close();}};
     conn.on('open',()=>{
       if(this.closed||!this.watchers.has(conn)){conn.close();return;}
-      entry.lastSeen=Date.now();send(this.snapshot());
+      entry.lastSeen=Date.now();send({...this.snapshot(),spectator:true});
       entry.heartbeat=setInterval(()=>{
         if(Date.now()-entry.lastSeen>6000){remove();conn.close();return;}
         send({type:'ping'});
@@ -91,7 +92,7 @@ export class Room {
       if(this.closed||!this.watchers.has(conn)||message?.version!==VERSION)return;
       entry.lastSeen=Date.now();
       if(message.type==='ping')send({type:'pong'});
-      if(message.type==='sync')send(this.snapshot());
+      if(message.type==='sync')send({...this.snapshot(),spectator:true});
       // Watchers never enter the move or rematch handlers.
     });
     conn.on('close',remove);conn.on('error',()=>{remove();conn.close();});
@@ -116,7 +117,7 @@ export class Room {
   send(message){if(!this.conn?.open)return false;try{this.conn.send({...message,version:VERSION});return true;}catch{this.ready=false;this.pending=false;this.status('送信できませんでした。再接続してください。');return false;}}
   sendSnapshot(){
     const snapshot=this.snapshot(),sent=this.send(snapshot);
-    for(const [conn,entry] of this.watchers){if(!conn.open)continue;try{conn.send(snapshot);}catch{clearInterval(entry.heartbeat);this.watchers.delete(conn);conn.close();}}
+    for(const [conn,entry] of this.watchers){if(!conn.open)continue;try{conn.send({...snapshot,spectator:true});}catch{clearInterval(entry.heartbeat);this.watchers.delete(conn);conn.close();}}
     return sent;
   }
   receive(message){
@@ -135,6 +136,7 @@ export class Room {
     }else if(message.type==='state'&&typeof message.match==='string'&&message.match.length<100&&Number.isInteger(message.rev)){
       if(message.match===this.match&&message.rev<this.rev)return;
       const state=restore(message.log);if(!state||state.moves!==message.rev)return;
+      if(message.spectator===true){this.spectator=true;this.role=0;}
       let steps=[];
       if(this.match===message.match&&state.moves===this.state.moves+1)steps=play(this.state,state.log.at(-1))?.steps??[];
       this.match=message.match;this.rev=message.rev;this.state=state;this.ready=true;this.pending=false;clearTimeout(this.timeout);

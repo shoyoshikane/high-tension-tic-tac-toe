@@ -186,6 +186,7 @@ function startRoom(target='',spectator=false){
   roomText='接続を準備しています…';
   room=new Room({onState:(state,steps)=>animate(state,steps),onStatus:text=>{
     roomText=text;
+    if(room?.spectator){const url=new URL(location.href),params=new URLSearchParams(url.hash.slice(1));params.set('watch','1');url.hash=params.toString();history.replaceState(null,'',url);}
     if(!busy){if(blocked())clearSelection();render();$('message').textContent=hint();}
     else $('room-status').textContent=text;
   }});

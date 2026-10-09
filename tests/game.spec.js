@@ -40,10 +40,15 @@ test('real WebRTC peers share moves, enforce turns, flick chains, and rematch co
   for(const page of [host,guest])await expect(page.locator('.board .stone')).toHaveCount(0);
   await a.close();await b.close();
 });
-test('full rooms reject a third player and disconnect pauses the board',async({browser})=>{
+test('full rooms automatically admit a third player as a spectator and disconnect pauses the board',async({browser})=>{
   const {host,guest,a,b,invite}=await createPair(browser);
   const c=await browser.newContext(),third=await c.newPage();await localSignaling(third);await third.goto(invite);
-  await expect(third.locator('#room-status')).toContainText('満員');
+  await expect(third.locator('#turn-label')).toContainText('観戦中');
+  await expect(cell(third,0)).toBeDisabled();await expect(third.locator('#reset')).toBeHidden();
+  await expect(third).toHaveURL(/watch=1/);
+  await cell(host,0).click();await expect(cell(third,0).locator('.p1')).toHaveCount(1);
+  await third.reload();await expect(third.locator('#turn-label')).toContainText('観戦中');
+  await expect(cell(third,0).locator('.p1')).toHaveCount(1);
   await b.close();await expect(host.locator('#room-status')).toContainText('接続が切れ',{timeout:12000});
   await expect(cell(host,0)).toBeDisabled();await a.close();await c.close();
 });

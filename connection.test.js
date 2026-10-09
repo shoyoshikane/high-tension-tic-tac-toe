@@ -31,7 +31,7 @@ test('a rejected connection can request its dropped notice and acknowledges befo
   globalThis.Peer=Peer;
   let status='';
   const host=new Room({onState:()=>{},onStatus:()=>{}}),third=new Room({onState:()=>{},onStatus:text=>status=text});
-  const hostConn=new Connection({version:VERSION,token:'third'}),clientConn=new Connection();
+  const hostConn=new Connection({version:VERSION}),clientConn=new Connection();
   try{
     await host.start();host.guestToken='existing-player';host.peer.emit('connection',hostConn);hostConn.connect();
     hostConn.sent=[];third.attach(clientConn);clientConn.connect();

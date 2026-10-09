@@ -11,6 +11,20 @@ class Connection extends EventEmitter {
   close(){this.open=false;this.emit('close');}
 }
 const room=()=>new Room({onState:()=>{},onStatus:()=>{}});
+test('a full-room snapshot switches a joining player to read-only before notifying the UI',()=>{
+  const host=room();host.host=true;host.role=1;host.ready=true;host.move({type:'place',i:0});
+  let spectatorAtUpdate=false;
+  const joining=new Room({onState:()=>{spectatorAtUpdate=joining.spectator&&!joining.canMove;},onStatus:()=>{}});
+  joining.role=2;joining.localVote=true;
+  try{
+    joining.receive({...host.snapshot(),spectator:true,log:[{type:'place',i:0,player:2}]});
+    assert.equal(joining.spectator,false);
+    joining.receive({...host.snapshot(),spectator:true});
+    assert.equal(spectatorAtUpdate,true);assert.equal(joining.role,0);assert.equal(joining.localVote,false);
+    assert.equal(joining.state.moves,1);assert.equal(joining.move({type:'place',i:2}),false);
+    joining.rematch();assert.equal(joining.localVote,false);
+  }finally{host.close();joining.close();}
+});
 test('watchers receive moves and rematches without consuming the player slot or accepting commands',()=>{
   const host=room();host.host=true;host.role=1;
   const watchers=[new Connection(),new Connection()];
@@ -67,8 +81,11 @@ test('spectator links and retries keep a read-only connection role',async()=>{
     watcher.emit('data',{type:'sync',version:VERSION});assert.equal(watcher.sent.at(-1).type,'state');
     const player=new Connection({version:VERSION,token:'player'});host.peer.emit('connection',player);player.connect();
     const third=new Connection({version:VERSION,token:'third'});host.peer.emit('connection',third);third.connect();
-    third.sent=[];third.emit('data',{type:'sync',version:VERSION});assert.equal(third.sent.at(-1).type,'rejected');
-    third.emit('data',{type:'rejected-ack',version:VERSION});assert.equal(third.open,false);
+    third.sent=[];third.emit('data',{type:'sync',version:VERSION});assert.equal(third.sent.at(-1).type,'state');assert.equal(third.sent.at(-1).spectator,true);
+    assert.equal(host.conn,player);assert.equal(host.guestToken,'player');assert.equal(host.watchers.size,2);
+    player.close();
+    const returning=new Connection({version:VERSION,token:'player'});host.peer.emit('connection',returning);returning.connect();
+    assert.equal(host.conn,returning);assert.equal(host.watchers.size,2);
     await viewer.start('host-id',true);viewer.peer.emit('open','viewer-id');
     assert.equal(viewer.role,0);assert.equal(viewer.peer.options.metadata.watch,true);
     viewer.conn.connect();assert.equal(viewer.conn.sent.at(-1).type,'sync');viewer.receive(host.snapshot());viewer.conn.close();
