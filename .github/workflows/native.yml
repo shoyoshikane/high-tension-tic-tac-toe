@@ -1,8 +1,5 @@
 name: Test and build native apps
 on:
-  push:
-    branches: [main]
-    paths: ['native/**', '.github/workflows/native.yml']
   workflow_dispatch:
 permissions:
   contents: read

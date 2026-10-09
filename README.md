@@ -76,7 +76,7 @@ npx playwright test --config native/test_browser/playwright.config.js
 
 `.github/workflows/pages.yml` は `main` へのpushでFlutter解析・テスト・Webビルド、旧版の検証、Flutterのブラウザテストを実行し、成功後に `native/build/web/` をGitHub Pagesへ公開します。CanvasKitは同じサイトから配信します。
 
-`.github/workflows/native.yml` はAndroidのデバッグAPKとiOSシミュレーター用アプリをビルドします。iOSシミュレーターのビルドには開発チームの署名は不要です。実機配布・ストア公開には別途署名と配布設定が必要です。Web公開にAndroid・iOSのビルド成功は必須ではありません。
+`.github/workflows/native.yml` はGitHub Actionsから手動実行したときだけ、AndroidのデバッグAPKとiOSシミュレーター用アプリをビルドします。push時の自動ビルドは行いません。iOSシミュレーターのビルドには開発チームの署名は不要です。実機配布・ストア公開には別途署名と配布設定が必要です。Web公開にAndroid・iOSのビルド成功は必須ではありません。
 
 ```sh
 cd native
