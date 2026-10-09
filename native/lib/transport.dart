@@ -7,9 +7,13 @@ abstract class RoomConnection {
   Future<void> send(Map<String, dynamic> message);
   Future<void> close();
 }
+
 abstract class RoomPeer {
-  Future<void> start({required void Function(String) onOpen,
-    required void Function(RoomConnection) onConnection, required void Function(String) onError});
+  Future<void> start({
+    required void Function(String) onOpen,
+    required void Function(RoomConnection) onConnection,
+    required void Function(String) onError,
+  });
   Future<RoomConnection> connect(String target, Map<String, dynamic> metadata);
   Future<void> dispose();
 }

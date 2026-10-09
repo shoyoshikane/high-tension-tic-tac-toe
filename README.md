@@ -1,6 +1,8 @@
 # ハイテンション三目並べ
 
-オリジナルブラウザゲーム。静的HTML/CSS/JavaScriptで実装し、GitHub Pagesで公開します。
+ドラッグでコマを弾く三目並べ。FlutterでWeb・iOS・AndroidのUIとゲーム処理を共通化し、Web版はGitHub Pagesで公開します。
+
+公開URL: https://shoyoshikane.github.io/high-tension-tic-tac-toe/
 
 ## 友達とオンライン対戦
 
@@ -15,18 +17,25 @@
 
 観戦する友達にも同じ招待リンクを送れます。盤面の上の「観戦モード」表示で、観戦中であることを確認できます。複数人が同時に観戦でき、途中参加でも現在の盤面から表示します。駒の配置・連鎖・勝敗・再戦を同期し、観戦者は駒を操作したり再戦を提案したりできません。対戦相手が切断したら接続待ちを表示します。観戦者の再読み込みや「再接続」では、同じ部屋の現在の盤面を取得できます。作成者が部屋を閉じた場合は観戦も終了します。
 
-通信にはPeerJS 1.5.5と無料のPeerJS Cloud接続仲介サービスを使用し、盤面はブラウザ間のWebRTCデータチャネルで共有します。サードパーティの仲介サービスとSTUNサーバーへの接続が発生します。サービス障害や一部の企業ネットワーク・NAT環境では接続できないことがあります。この版では専用TURNサーバーを用意していないため、接続できないときはモバイル回線など別の回線をお試しください。
+通信にはPeerJS互換の接続処理と無料のPeerJS Cloud接続仲介サービスを使用し、盤面はWebRTCデータチャネルで共有します。FlutterのWeb版・ネイティブ版と旧Web版で同じ対戦プロトコルを使用します。サードパーティの仲介サービスとSTUNサーバーへの接続が発生します。サービス障害や一部の企業ネットワーク・NAT環境では接続できないことがあります。この版では専用TURNサーバーを用意していないため、接続できないときはモバイル回線など別の回線をお試しください。
 
 PeerJS: https://peerjs.com/client/faq （MITライセンス。`dist/vendor/peerjs-LICENSE`参照）
 
-## 起動
+## 開発環境と起動
+
+Flutter 3.47.7（Dart同梱）を使用します。macOSでは `brew install --cask flutter` でインストールできます。
 
 ```sh
-cd /Users/sho.yoshikane/ghq/github.com/shoyoshikane/vidro
-npm start
+cd native
+bash tool/bootstrap.sh
+flutter run -d chrome
 ```
 
-http://localhost:4173 を開いてください。Python 3を使用します。HTMLを直接開くとES Modulesが読み込めないため、HTTPサーバー経由で起動してください。
+初回のbootstrapでAndroid・iOS・Webの雛形を生成し、表示名、権限、招待リンクの設定を適用して依存パッケージを取得します。雛形は生成物として扱い、ゲームのソースは `native/lib/` に置きます。WebのHTMLは `native/tool/web/index.html` で管理します。
+
+ネイティブ版はAndroid SDKまたはXcode、iOSの依存関係用にCocoaPodsを用意し、`flutter doctor -v` で確認してください。接続した端末・シミュレーターを `flutter devices` で確認し、`flutter run -d <端末ID>` で起動できます。
+
+共有する招待URLはWeb版を開きます。アプリでは「オンライン対戦」の招待リンク欄へ貼り付けて参加できます。`hightension://join?room=部屋ID` のカスタムURLにも対応します。HTTPSの招待リンクでインストール済みアプリを自動的に開くUniversal Links／Android App Linksは未設定です。
 
 ## 遊び方
 
@@ -42,20 +51,37 @@ http://localhost:4173 を開いてください。Python 3を使用します。HT
 ## 検証
 
 ```sh
-npm ci
-npm test
-npx playwright install chromium
-npm run test:browser
-# サーバーを使わないUIブラウザテスト
-npm run test:ui
+cd native
+flutter analyze
+flutter test
+flutter build web --no-web-resources-cdn --base-href /high-tension-tic-tac-toe/
 ```
 
-配置・連鎖・勝敗の単体テストに加え、古い手番や不正なネットワーク操作の拒否、再接続時の状態復元を検証します。DOMイベントのテストではドラッグ中のプレビュー、確定、各種キャンセル、タッチ、キーボード、二重入力の防止、CPUの応答と手戻しを検証します。ブラウザテストはローカルのPeerServerと2つのブラウザを使い、実際のWebRTC接続、双方への盤面反映、手番制限、連鎖、再戦の同意、3人目の拒否、切断時の停止、CPU、モバイル画面を検証します。
+旧JavaScript版の244局面とDart版の合法手・盤面・勝敗を比較し、配置、連鎖、反転禁止、CPU、対戦同期、満員時の観戦、再戦、再接続、ドラッグUIを検証します。
 
-## GitHub Pagesへの公開
+実際のブラウザ・WebRTCを使うテスト:
 
-`.github/workflows/pages.yml` が `main` へのpushでテストを実行し、成功後に `dist/` をGitHub Pagesへ公開します。外部サービスの本番仲介サーバーへの接続可否は各利用者の回線に依存します。
+```sh
+# native/ でテスト用のFlutterエントリーポイントをビルド
+flutter build web --no-web-resources-cdn --target test_browser/main.dart --output build/browser-test
+cd ..
+npm ci
+npx playwright install chromium
+npx playwright test --config native/test_browser/playwright.config.js
+```
+
+テスト用ビルドだけが状態確認用のブリッジとローカル接続サーバーを使います。公開用 `lib/main.dart` のビルドには含めません。旧版のソース `dist/` とそのテストは移行時のルール・通信互換性の確認用として残しています。
+
+## ビルドと公開
+
+`.github/workflows/pages.yml` は `main` へのpushでFlutter解析・テスト・Webビルド、旧版の検証、Flutterのブラウザテストを実行し、成功後に `native/build/web/` をGitHub Pagesへ公開します。CanvasKitは同じサイトから配信します。
+
+`.github/workflows/native.yml` はAndroidのデバッグAPKとiOSシミュレーター用アプリをビルドします。iOSシミュレーターのビルドには開発チームの署名は不要です。実機配布・ストア公開には別途署名と配布設定が必要です。Web公開にAndroid・iOSのビルド成功は必須ではありません。
+
+```sh
+cd native
+flutter build apk --debug
+flutter build ios --simulator
+```
 
 以前のSites登録情報はローカルの `.openai/` にありますが、GitHubには含めず、公開先として使用しません。
-
-現在のUI変更はローカルで編集中です。pushおよび公開更新は保留しています。環境制限により、この変更後のブラウザ表示・実操作の検証は未実施です。

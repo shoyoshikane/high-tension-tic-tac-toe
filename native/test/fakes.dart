@@ -1,4 +1,5 @@
 import 'dart:async';
+
 import 'package:high_tension_tic_tac_toe/transport.dart';
 
 class FakeHub {
@@ -6,6 +7,7 @@ class FakeHub {
   int nextId = 0;
   FakePeer create() => FakePeer(this, 'peer-${nextId++}');
 }
+
 class FakePeer implements RoomPeer {
   FakePeer(this.hub, this.id);
   final FakeHub hub;
@@ -13,29 +15,56 @@ class FakePeer implements RoomPeer {
   final List<FakeConnection> connections = [];
   late void Function(RoomConnection) onConnection;
   @override
-  Future<void> start({required void Function(String) onOpen, required void Function(RoomConnection) onConnection, required void Function(String) onError}) async {
-    this.onConnection = onConnection; hub.peers[id] = this; onOpen(id);
+  Future<void> start({
+    required void Function(String) onOpen,
+    required void Function(RoomConnection) onConnection,
+    required void Function(String) onError,
+  }) async {
+    this.onConnection = onConnection;
+    hub.peers[id] = this;
+    onOpen(id);
   }
+
   @override
-  Future<RoomConnection> connect(String target, Map<String, dynamic> metadata) async {
-    final remote = hub.peers[target]; if (remote == null) throw StateError('Missing peer');
+  Future<RoomConnection> connect(
+    String target,
+    Map<String, dynamic> metadata,
+  ) async {
+    final remote = hub.peers[target];
+    if (remote == null) throw StateError('Missing peer');
     final local = FakeConnection({}), other = FakeConnection(metadata);
-    local.partner = other; other.partner = local; connections.add(local); remote.connections.add(other);
+    local.partner = other;
+    other.partner = local;
+    connections.add(local);
+    remote.connections.add(other);
     remote.onConnection(other);
-    scheduleMicrotask(() { other.activate(); local.activate(); });
+    scheduleMicrotask(() {
+      other.activate();
+      local.activate();
+    });
     return local;
   }
+
   @override
-  Future<void> dispose() async { hub.peers.remove(id); for (final conn in List<FakeConnection>.of(connections)) { await conn.close(); } }
+  Future<void> dispose() async {
+    hub.peers.remove(id);
+    for (final conn in List<FakeConnection>.of(connections)) {
+      await conn.close();
+    }
+  }
 }
+
 class FakeConnection implements RoomConnection {
   FakeConnection(this.metadata);
   @override
   final Map<String, dynamic> metadata;
   late FakeConnection partner;
   bool _open = false, _disposed = false;
-  final _opened = StreamController<void>.broadcast(sync: true), _closed = StreamController<void>.broadcast(sync: true);
-  final _messages = StreamController<Map<String, dynamic>>.broadcast(sync: true);
+  final _opened = StreamController<void>.broadcast(sync: true),
+      _closed = StreamController<void>.broadcast(sync: true);
+  final _messages = StreamController<Map<String, dynamic>>.broadcast(
+    sync: true,
+  );
   @override
   bool get open => _open && !_disposed;
   @override
@@ -44,12 +73,27 @@ class FakeConnection implements RoomConnection {
   Stream<void> get closed => _closed.stream;
   @override
   Stream<Map<String, dynamic>> get messages => _messages.stream;
-  void activate() { if (!_disposed) { _open = true; _opened.add(null); } }
+  void activate() {
+    if (!_disposed) {
+      _open = true;
+      _opened.add(null);
+    }
+  }
+
   @override
-  Future<void> send(Map<String, dynamic> message) async { if (!_disposed && !partner._disposed) partner._messages.add(message); }
+  Future<void> send(Map<String, dynamic> message) async {
+    if (!_disposed && !partner._disposed) partner._messages.add(message);
+  }
+
   @override
   Future<void> close() async {
-    if (_disposed) return; _disposed = true; _open = false; _closed.add(null);
-    await partner.close(); await _opened.close(); await _messages.close(); await _closed.close();
+    if (_disposed) return;
+    _disposed = true;
+    _open = false;
+    _closed.add(null);
+    await partner.close();
+    await _opened.close();
+    await _messages.close();
+    await _closed.close();
   }
 }

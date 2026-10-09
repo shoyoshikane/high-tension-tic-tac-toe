@@ -1,0 +1,22 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <base href="$FLUTTER_BASE_HREF">
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="ドラッグで弾く、ハイテンション三目並べ。CPUや友達と対戦しよう。">
+  <meta name="theme-color" content="#eff0ed">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-title" content="ハイテンション三目並べ">
+  <title>ハイテンション三目並べ</title>
+  <style>
+    html, body { margin: 0; background: #eff0ed; }
+    #loading { min-height: 100dvh; display: grid; place-items: center; font: 14px system-ui; color: #354e3d; }
+  </style>
+</head>
+<body>
+  <div id="loading" role="status">ハイテンション三目並べ</div>
+  <script>window.addEventListener('flutter-first-frame', () => document.getElementById('loading')?.remove());</script>
+  <script src="flutter_bootstrap.js" async></script>
+</body>
+</html>

@@ -15,6 +15,23 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.47.7'
+          channel: stable
+          cache: true
+      - run: bash tool/bootstrap.sh
+        working-directory: native
+      - run: dart format --output=none --set-exit-if-changed lib test test_browser
+        working-directory: native
+      - run: flutter analyze
+        working-directory: native
+      - run: flutter test
+        working-directory: native
+      - run: flutter build web --no-web-resources-cdn --base-href /high-tension-tic-tac-toe/
+        working-directory: native
+      - run: flutter build web --no-web-resources-cdn --target test_browser/main.dart --output build/browser-test
+        working-directory: native
       - uses: actions/setup-node@v4
         with:
           node-version: 22
@@ -25,6 +42,7 @@ jobs:
       - run: npm run test:browser
         env:
           RUN_CLOUD_SMOKE: '1'
+      - run: npx playwright test --config native/test_browser/playwright.config.js
       - uses: actions/upload-artifact@v4
         if: failure()
         with:
@@ -35,7 +53,7 @@ jobs:
       - uses: actions/configure-pages@v5
       - uses: actions/upload-pages-artifact@v4
         with:
-          path: dist
+          path: native/build/web
   deploy:
     needs: test-and-build
     runs-on: ubuntu-latest
