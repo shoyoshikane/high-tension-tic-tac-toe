@@ -21,7 +21,7 @@ export class Room {
     this.peer=null;this.conn=null;this.host=false;this.role=0;this.ready=false;this.pending=false;
     this.localVote=false;this.remoteVote=false;this.guestToken=null;this.closed=false;this.attempt=0;
     this.identity=uid();this.invite='';this.target='';this.timeout=null;this.heartbeat=null;this.lastSeen=0;
-    this.spectator=false;this.watchInvite='';this.watchers=new Map();this.playing=false;
+    this.spectator=false;this.watchers=new Map();this.playing=false;
   }
   status(text){this.onStatus(text,this);}
   get canMove(){return this.ready&&!this.pending&&this.state.turn===this.role&&!this.state.result;}
@@ -37,7 +37,7 @@ export class Room {
       peer.on('open',id=>{
         if(this.closed||this.peer!==peer)return;
         clearTimeout(this.timeout);
-        if(this.host){const url=new URL(location.href);url.hash=`room=${id}`;this.invite=url.href;url.hash=`room=${id}&watch=1`;this.watchInvite=url.href;this.status(this.ready?'友達と接続しました。':this.guestToken?'友達の再接続を待っています。':'招待リンクを友達に送ってください。');}
+        if(this.host){const url=new URL(location.href);url.hash=`room=${id}`;this.invite=url.href;this.status(this.ready?'友達と接続しました。':this.guestToken?'友達の再接続を待っています。':'招待リンクを友達に送ってください。');}
         else this.connect();
       });
       peer.on('connection',conn=>{

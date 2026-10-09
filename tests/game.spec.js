@@ -44,6 +44,9 @@ test('full rooms automatically admit a third player as a spectator and disconnec
   const {host,guest,a,b,invite}=await createPair(browser);
   const c=await browser.newContext(),third=await c.newPage();await localSignaling(third);await third.goto(invite);
   await expect(third.locator('#turn-label')).toContainText('観戦中');
+  await expect(third.locator('#spectator-badge')).toBeVisible();
+  await expect(third.locator('body')).toHaveCSS('background-color','rgb(240, 24, 50)');
+  await expect(host.locator('#spectator-badge')).toBeHidden();
   await expect(cell(third,0)).toBeDisabled();await expect(third.locator('#reset')).toBeHidden();
   await expect(third).toHaveURL(/watch=1/);
   await cell(host,0).click();await expect(cell(third,0).locator('.p1')).toHaveCount(1);
@@ -53,14 +56,15 @@ test('full rooms automatically admit a third player as a spectator and disconnec
   await expect(cell(host,0)).toBeDisabled();await a.close();await c.close();
 });
 test('spectators share moves and rematches, reconnect, and cannot operate the board',async({browser})=>{
-  const {host,guest,a,b}=await createPair(browser);
+  const {host,guest,a,b,invite}=await createPair(browser);
   const c=await browser.newContext({reducedMotion:'reduce'}),d=await browser.newContext({reducedMotion:'reduce'});
   try{
-    const watch=await host.locator('#watch-link').inputValue();expect(watch).toContain('watch=1');
     const viewers=[await c.newPage(),await d.newPage()];
     for(const viewer of viewers){
-      await localSignaling(viewer);await viewer.goto(watch);
+      await localSignaling(viewer);await viewer.goto(invite);
       await expect(viewer.locator('#turn-label')).toContainText('観戦中');
+      await expect(viewer.locator('#spectator-badge')).toHaveText('観戦モード');
+      await expect(viewer.locator('#spectator-badge')).toBeVisible();
       await expect(cell(viewer,0)).toBeDisabled();await expect(viewer.locator('#reset')).toBeHidden();
       await expect(viewer.locator('#undo')).toBeHidden();
     }

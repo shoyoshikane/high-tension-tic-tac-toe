@@ -22,6 +22,7 @@ const stone=(p,extra='')=>`<span class="stone p${p} ${extra}" aria-hidden="true"
 function render(display=s.board){
   const focusedCell=document.activeElement?.closest('[data-cell]')?.dataset.cell;
   const locked=busy||blocked()||!!s.result;
+  document.body.classList.toggle('spectating',mode==='online'&&!!room?.spectator);
   for(const m of ['cpu','online']){
     $(m).classList.toggle('active',mode===m);
     $(m).setAttribute('aria-pressed',String(mode===m));
@@ -32,8 +33,7 @@ function render(display=s.board){
   $('invite-link').value=room?.invite??'';
   $('invite-wrap').hidden=!room?.invite;
   $('copy-invite').disabled=!room?.invite;
-  $('watch-link').value=room?.watchInvite??'';
-  $('watch-wrap').hidden=!room?.watchInvite;
+  $('spectator-badge').hidden=mode!=='online'||!room?.spectator;
   $('reconnect').hidden=!!room?.ready;
   $('reset').textContent=mode==='online'?'もう一局':'新しい対局';
   $('reset').disabled=mode==='online'&&(!room?.ready||room.localVote);
@@ -192,14 +192,12 @@ function startRoom(target='',spectator=false){
   }});
   render();room.start(target,spectator);
 }
-function copyLink(kind){return async()=>{
+$('copy-invite').onclick=async()=>{
   $('room-status').hidden=false;
-  const field=$(kind==='watch'?'watch-link':'invite-link');
+  const field=$('invite-link');
   try{await navigator.clipboard.writeText(field.value);$('room-status').textContent='コピーしました';}
   catch{field.hidden=false;field.focus();field.select();$('room-status').textContent='リンクをコピーしてください';}
-};}
-$('copy-invite').onclick=copyLink('invite');
-$('copy-watch').onclick=copyLink('watch');
+};
 $('reconnect').onclick=()=>room?.retry();
 addEventListener('beforeunload',event=>{if(mode==='online'&&room?.ready&&!room.spectator){event.preventDefault();event.returnValue='';}});
 const params=new URLSearchParams(location.hash.slice(1)),target=params.get('room');

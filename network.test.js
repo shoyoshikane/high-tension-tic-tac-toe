@@ -75,7 +75,7 @@ test('spectator links and retries keep a read-only connection role',async()=>{
   const host=room(),viewer=room();
   try{
     await host.start();host.peer.emit('open','host-id');
-    assert.equal(new URL(host.watchInvite).hash,'#room=host-id&watch=1');
+    assert.equal(new URL(host.invite).hash,'#room=host-id');
     const watcher=new Connection({version:VERSION,watch:true});host.peer.emit('connection',watcher);watcher.connect();
     assert.equal(host.watchers.size,1);assert.equal(host.conn,null);
     watcher.emit('data',{type:'sync',version:VERSION});assert.equal(watcher.sent.at(-1).type,'state');

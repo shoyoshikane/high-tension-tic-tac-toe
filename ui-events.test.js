@@ -45,6 +45,9 @@ test('spectator UI blocks pointer, click and keyboard moves and hides rematch co
   const ui=await setup([],true);
   try{
     assert.match(ui.w.document.getElementById('turn-label').textContent,/観戦中/);
+    assert.equal(ui.w.document.getElementById('spectator-badge').hidden,false);
+    assert.equal(ui.w.document.body.classList.contains('spectating'),true);
+    assert.equal(ui.w.document.getElementById('copy-watch'),null);
     assert.equal(ui.w.document.getElementById('reset').hidden,true);assert.equal(ui.w.document.getElementById('undo').hidden,true);
     assert.ok([...ui.board.children].every(el=>el.disabled));
     assert.doesNotMatch(ui.w.document.getElementById('players').textContent,/あなた|相手/);
@@ -60,6 +63,8 @@ test('the UI only offers CPU/online and identifies black as first, white as seco
   const ui=await setup();
   assert.equal(ui.w.document.querySelectorAll('.modes button').length,2);
   assert.equal(ui.w.document.getElementById('local'),null);
+  assert.equal(ui.w.document.getElementById('spectator-badge').hidden,true);
+  assert.equal(ui.w.document.body.classList.contains('spectating'),false);
   assert.match(ui.w.document.querySelector('[data-player="1"]').textContent,/先攻/);
   assert.match(ui.w.document.querySelector('[data-player="2"]').textContent,/後攻/);
   assert.ok(ui.cell(0).querySelector('.stone.p1'));assert.ok(ui.cell(2).querySelector('.stone.p2'));ui.close();
