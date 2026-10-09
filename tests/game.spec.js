@@ -62,3 +62,16 @@ test('production PeerJS Cloud connects two browsers and shares a move',async({br
   await cell(guest,0).click();await expect(cell(host,0).locator('.p2')).toHaveCount(1);
   await a.close();await b.close();
 });
+test('the same guest can reconnect and resume the authoritative board',async({browser})=>{
+  const {host,guest,a,b}=await createPair(browser);
+  await cell(host,12).click();await expect(cell(guest,12).locator('.p1')).toHaveCount(1);
+  const session=await b.newCDPSession(guest);await session.send('Debugger.enable');await session.send('Debugger.pause');
+  await expect(host.locator('#room-status')).toContainText('接続が切れ',{timeout:12000});
+  await session.send('Debugger.resume');await session.detach();
+  await expect(guest.locator('#room-status')).toContainText('接続が切れ',{timeout:12000});
+  await guest.locator('#reconnect').click();
+  await expect(guest.locator('#room-status')).toContainText('接続しました',{timeout:15000});
+  await expect(cell(guest,12).locator('.p1')).toHaveCount(1);
+  await cell(guest,0).click();await expect(cell(host,0).locator('.p2')).toHaveCount(1);
+  await a.close();await b.close();
+});
